@@ -593,6 +593,7 @@ module Make (Inputs : Inputs_intf) = struct
       ; receipt_chain_database: Coda_base.Receipt_chain_database.t
       ; snark_work_fee: Currency.Fee.t
       ; monitor: Monitor.t option
+      ; consensus_local_state: Consensus_mechanism.Local_state.t
       (* TODO: Pass banlist to modules discussed in Ban Reasons issue: https://github.com/CodaProtocol/coda/issues/852 *)
       }
     [@@deriving make]
@@ -666,12 +667,6 @@ module Make (Inputs : Inputs_intf) = struct
     let monitor = Option.value ~default:(Monitor.create ()) config.monitor in
     Async.Scheduler.within' ~monitor (fun () ->
         trace_task "coda" (fun () ->
-            let consensus_local_state =
-              Consensus_mechanism.Local_state.create
-                (Option.map config.propose_keypair ~f:(fun keypair ->
-                     let open Keypair in
-                     Public_key.compress keypair.public_key ))
-            in
             let external_transitions_reader, external_transitions_writer =
               Strict_pipe.create Synchronous
             in
@@ -852,5 +847,5 @@ module Make (Inputs : Inputs_intf) = struct
               ; receipt_chain_database= config.receipt_chain_database
               ; snark_work_fee= config.snark_work_fee
               ; proposer_transition_writer
-              ; consensus_local_state } ) )
+              ; consensus_local_state= config.consensus_local_state } ) )
 end
