@@ -230,14 +230,16 @@ module Local_state = struct
   module Snapshot = struct
     type t =
       { ledger: Coda_base.Sparse_ledger.t
+      ; use_in_epoch: Epoch.t
       ; delegators: Currency.Balance.t Coda_base.Account.Index.Table.t }
     [@@deriving sexp]
 
-    let to_yojson {ledger; delegators} =
+    let to_yojson {ledger; delegators; use_in_epoch} =
       `Assoc
         [ ( "ledger_hash"
           , Coda_base.(
               Sparse_ledger.merkle_root ledger |> Ledger_hash.to_yojson) )
+        ; ("use_in_epoch", `Int (Epoch.to_int use_in_epoch))
         ; ( "delegators"
           , `Assoc
               ( Hashtbl.to_alist delegators
@@ -247,6 +249,7 @@ module Local_state = struct
 
     let create_empty () =
       { ledger= Coda_base.Sparse_ledger.of_root Coda_base.Ledger_hash.empty_hash
+      ; use_in_epoch= Epoch.zero
       ; delegators= Coda_base.Account.Index.Table.create () }
   end
 
@@ -280,7 +283,7 @@ module Local_state = struct
                  (module Coda_base.Ledger)
                  Genesis_ledger.t)
           in
-          {delegators; ledger}
+          {delegators; ledger; use_in_epoch= Epoch.zero}
     in
     { last_epoch_snapshot= None
     ; curr_epoch_snapshot= None
@@ -1961,15 +1964,34 @@ let select_epoch_snapshot ~(consensus_state : Consensus_state.Value.t)
   let epoch_is_finalized =
     consensus_state.curr_epoch_data.length > Length.of_int Constants.k
   in
-  if is_genesis_snapshot then
-    (`Genesis, Some local_state.genesis_epoch_snapshot)
-  else if in_next_epoch || not epoch_is_finalized then
-    (`Curr, local_state.curr_epoch_snapshot)
-  else (`Last, local_state.last_epoch_snapshot)
+  let source, snapshot =
+    if is_genesis_snapshot then
+      (`Genesis, Some local_state.genesis_epoch_snapshot)
+    else if in_next_epoch || not epoch_is_finalized then
+      (`Curr, local_state.curr_epoch_snapshot)
+    else (`Last, local_state.last_epoch_snapshot)
+  in
+  Option.iter snapshot (fun snapshot ->
+  if source <> `Genesis then (
+  [%test_result : Coda_base.Ledger_hash.t]
+    (Coda_base.Sparse_ledger.merkle_root snapshot.ledger)
+    ~message:"Selected snapshot did not have the hash we were expecting"
+    ~expect:(Coda_base.Frozen_ledger_hash.to_ledger_hash epoch_data.ledger.hash) ;
+  (if not (Epoch.equal snapshot.use_in_epoch epoch) then
+    [%test_result: [`Curr|`Genesis|`Last]]
+      source
+      ~message:"when the epochs differ"
+      ~expect:`Curr else
+  [%test_result: Epoch.t]
+    snapshot.use_in_epoch
+    ~message:"Snapshot we selected wasn't created for the epoch we wanted"
+    ~expect:epoch ) ) ) ;
+  source, snapshot
 
 type local_state_sync =
   { snapshot_id: Local_state.snapshot_identifier
-  ; expected_root: Coda_base.Frozen_ledger_hash.t }
+  ; expected_root: Coda_base.Frozen_ledger_hash.t
+  ; label: string }
 [@@deriving to_yojson]
 
 let required_local_state_sync ~(consensus_state : Consensus_state.Value.t)
@@ -1991,16 +2013,16 @@ let required_local_state_sync ~(consensus_state : Consensus_state.Value.t)
   let source, _snapshot =
     select_epoch_snapshot ~consensus_state ~local_state ~epoch ~epoch_data
   in
-  let required_snapshot_sync snapshot_id expected_root =
+  let required_snapshot_sync snapshot_id expected_root label =
     match Local_state.get_snapshot local_state snapshot_id with
-    | None -> Some {snapshot_id; expected_root}
+    | None -> Some {snapshot_id; expected_root; label}
     | Some s ->
         Option.some_if
           (not
              (Ledger_hash.equal
                 (Frozen_ledger_hash.to_ledger_hash expected_root)
                 (Sparse_ledger.merkle_root s.ledger)))
-          {snapshot_id; expected_root}
+          {snapshot_id; expected_root; label}
   in
   match source with
   | `Genesis -> None
@@ -2008,15 +2030,15 @@ let required_local_state_sync ~(consensus_state : Consensus_state.Value.t)
   | `Curr ->
       Option.map
         (required_snapshot_sync Curr_epoch_snapshot
-           consensus_state.last_epoch_data.ledger.hash)
+           consensus_state.curr_epoch_data.ledger.hash (sprintf "curr %d" (Epoch.to_int consensus_state.curr_epoch)))
         ~f:Non_empty_list.singleton
   | `Last -> (
     match
       Core.List.filter_map
         [ required_snapshot_sync Curr_epoch_snapshot
-            consensus_state.curr_epoch_data.ledger.hash
+            consensus_state.curr_epoch_data.ledger.hash (sprintf "last %d" (Epoch.to_int consensus_state.curr_epoch))
         ; required_snapshot_sync Last_epoch_snapshot
-            consensus_state.last_epoch_data.ledger.hash ]
+            consensus_state.last_epoch_data.ledger.hash (sprintf "last %d" (Epoch.to_int consensus_state.curr_epoch))]
         ~f:Fn.id
     with
     | [] -> None
@@ -2052,7 +2074,7 @@ let sync_local_state ~logger ~local_state ~random_peers
                    ~default:(Coda_base.Account.Index.Table.create ())
             in
             set_snapshot local_state snapshot_id
-              (Some {ledger= snapshot_ledger; delegators}) ;
+              (Some {ledger= snapshot_ledger; delegators; use_in_epoch= Epoch.zero}) ;
             true
         | Ok (Error err) ->
             Logger.faulty_peer logger ~module_:__MODULE__ ~location:__LOC__
@@ -2288,7 +2310,11 @@ let next_proposal now (state : Consensus_state.Value.t) ~local_state ~keypair
           Logger.info logger ~module_:__MODULE__ ~location:__LOC__
             !"using %s_epoch_snapshot root hash %{sexp:Coda_base.Ledger_hash.t}"
             (epoch_snapshot_name source)
-            (Coda_base.Sparse_ledger.merkle_root snapshot.ledger) ) ;
+            (Coda_base.Sparse_ledger.merkle_root snapshot.ledger)  ;
+          [%test_result: Coda_base.Ledger_hash.t]
+          (Coda_base.Sparse_ledger.merkle_root snapshot.ledger)
+          ~message:"Snapshot root hash should match epoch data hash"
+          ~expect:(Coda_base.Frozen_ledger_hash.to_ledger_hash epoch_data.ledger.hash )) ;
       snapshot
     in
     let proposal_data slot =
@@ -2343,7 +2369,7 @@ let lock_transition (prev : Consensus_state.Value.t)
                 Coda_base.Ledger.Any_ledger.M.iteri snarked_ledger ~f )
           in
           let ledger = Coda_base.Sparse_ledger.of_any_ledger snarked_ledger in
-          {delegators; ledger} )
+          {delegators; ledger; use_in_epoch= next.curr_epoch} )
     in
     local_state.last_epoch_snapshot <- local_state.curr_epoch_snapshot ;
     local_state.curr_epoch_snapshot <- epoch_snapshot )

@@ -149,7 +149,7 @@ module Make (Inputs : Inputs_intf) :
     let best_tip_hash = With_hash.hash best_tip_with_hash in
     (* This statement might not see a peer's best_tip as the best_tip *)
     let is_before_best_tip candidate =
-      Consensus.select ~logger ~existing:(consensus_state best_tip) ~candidate
+      Consensus.select ~logger:(Logger.null ()) ~existing:(consensus_state best_tip) ~candidate
       = `Keep
     in
     let%bind () =

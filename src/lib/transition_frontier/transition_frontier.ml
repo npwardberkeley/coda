@@ -746,12 +746,7 @@ struct
                   (consensus_state_of_breadcrumb parent_node.breadcrumb)
                 ~candidate:(consensus_state_of_breadcrumb breadcrumb)
                 ~logger:
-                  (Logger.create ()
-                     ~metadata:
-                       [ ( "selection context"
-                         , `String
-                             "debug_assert that child is preferred over parent"
-                         ) ])
+                  (Logger.null ())
               = `Take ) ) ;
         let node = Hashtbl.find_exn t.table hash in
         (* 2 *)
@@ -870,6 +865,7 @@ struct
                                 |> List.map
                                      ~f:Consensus.local_state_sync_to_yojson )
                             )
+                          ; ("best_tip", Breadcrumb.to_yojson best_tip_node.breadcrumb)
                           ; ( "local_state"
                             , Consensus.Local_state.to_yojson
                                 t.consensus_local_state )
@@ -900,7 +896,7 @@ struct
                     TL.apply_transaction t.root_snarked_ledger txn
                     |> Or_error.ok_exn |> ignore ) ;
                 (* TODO: See issue #1606 to make this faster *)
-                
+
                 (*Ledger.commit db_mask ;*)
                 ignore
                   (Ledger.Maskable.unregister_mask_exn

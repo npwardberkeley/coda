@@ -6,9 +6,10 @@
 [%%import "config/debug_level/some.mlh"]
 [%%import "config/proof_level/none.mlh"]
 
-[%%define time_offsets true]
+[%%define time_offsets false]
 [%%define fake_hash true]
 
+[%%define c 2]
 [%%define genesis_ledger "test"]
 [%%define genesis_state_timestamp "2019-01-30 12:00:00-08:00"]
 [%%define block_window_duration 1000]
