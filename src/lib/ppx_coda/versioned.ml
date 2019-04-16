@@ -383,18 +383,21 @@ let generate_let_bindings_for_type_decl_str ~options ~path type_decls =
     generate_versioned_decls ~asserted generation_kind type_decl
   in
   (* deriving show *)
-  let _show_decl =
-    [ Ast_helper.Str.value Recursive
-        (Ppx_deriving_show.str_of_type ~options ~path type_decl) ]
+  let show_decl =
+    if asserted then [%stri let show _ = "*** t *** (versioning asserted)"]
+    else
+      Ast_helper.Str.value Recursive
+        (Ppx_deriving_show.str_of_type ~options:[] ~path type_decl)
   in
   let type_name = type_decl.ptype_name.txt in
   (* generate version number for Rpc response, but not for query, so we
      don't get an unused value
    *)
   if unnumbered || (generation_kind = Rpc && String.equal type_name "query")
-  then versioned_decls
+  then show_decl :: versioned_decls
   else
-    generate_version_number_decl inner3_modules loc generation_kind
+    show_decl
+    :: generate_version_number_decl inner3_modules loc generation_kind
     :: versioned_decls
 
 let generate_val_decls_for_type_decl type_decl ~unnumbered =
@@ -410,12 +413,16 @@ let generate_val_decls_for_type_decl type_decl ~unnumbered =
       raise_errorf ~loc:type_decl.ptype_loc
         "Versioned type in a signature must not be open"
 
-let generate_val_decls_for_type_decl_sig ~options ~path:_ type_decls =
+let generate_show_val_decls_for_type_decl ~path type_decl =
+  Ppx_deriving_show.sig_of_type ~options:[] ~path type_decl
+
+let generate_val_decls_for_type_decl_sig ~options ~path type_decls =
   (* in a signature, the module path may vary *)
   ignore (validate_options ["unnumbered"] options) ;
   let type_decl = get_type_decl_representative type_decls in
   let unnumbered = check_for_option "unnumbered" options in
-  generate_val_decls_for_type_decl type_decl ~unnumbered
+  generate_show_val_decls_for_type_decl ~path type_decl
+  @ generate_val_decls_for_type_decl type_decl ~unnumbered
 
 let () =
   Ppx_deriving.(

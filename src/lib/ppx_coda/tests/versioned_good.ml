@@ -113,6 +113,7 @@ module M6 = struct
       include T
     end
 
+    (*
     module V4 = struct
       module T = struct
         type t = Stable.V1.t option sexp_opaque
@@ -120,16 +121,16 @@ module M6 = struct
       end
 
       include T
-    end
-
+    end *)
+    (*
     module V5 = struct
       module T = struct
-        type t = Stable.V1.t array array sexp_opaque
+        type t = Stable.V1.t array array sexp_opaque [@opaque]
         [@@deriving sexp, bin_io, version]
       end
 
       include T
-    end
+    end *)
   end
 end
 
@@ -247,7 +248,7 @@ module M14 = struct
   module Stable = struct
     module V1 = struct
       module T = struct
-        type t = bytes [@@deriving bin_io, version]
+        type t = string [@@deriving bin_io, version]
       end
 
       include T
@@ -260,7 +261,8 @@ module M15 = struct
   module Stable = struct
     module V1 = struct
       module T = struct
-        type t = int Core_kernel.Queue.Stable.V1.t [@@deriving bin_io, version]
+        type t = (int Core_kernel.Queue.Stable.V1.t[@opaque])
+        [@@deriving bin_io, version]
       end
 
       include T

@@ -26,7 +26,6 @@ roots: [
   "ocamlformat.0.8"
   "ocamlgraph.1.8.8"
   "ocp-indent.1.7.0"
-  "ppx_deriving.4.2.1"
   "ppx_deriving_yojson.3.3"
   "re2.v0.11.0"
   "rpc_parallel.v0.11.0"

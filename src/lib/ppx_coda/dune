@@ -2,6 +2,6 @@
     (name ppx_coda)
     (public_name ppx_coda)
     (kind ppx_deriver)
-    (libraries compiler-libs.common ppxlib ppx_deriving.api ppx_deriving.std core_kernel)
+    (libraries compiler-libs.common ppxlib ppx_deriving.api ppx_deriving.show core_kernel)
     (preprocess (pps ppxlib.metaquot)))
 
