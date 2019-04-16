@@ -696,6 +696,12 @@ struct
                   |> Option.value_exn
                 in
                 [%test_result: Frozen_ledger_hash.t]
+                (Inputs.Ledger_proof.statement proof_data).target
+                ~message:"target of the ledger proof statement shoould be the new blockchain state snarked ledger hash"
+                ~expect:(Consensus.Blockchain_state.snarked_ledger_hash
+                   (Breadcrumb.blockchain_state new_root_node.breadcrumb))
+                   ;
+                [%test_result: Frozen_ledger_hash.t]
                   ~message:
                     "Root snarked ledger hash should be the same as the \
                      source hash in the proof that was just emitted"

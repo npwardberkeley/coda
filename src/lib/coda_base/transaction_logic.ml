@@ -270,8 +270,8 @@ module Make (L : Ledger_intf) : S with type ledger := L.t = struct
     let get_or_initialize pk =
       let initial_account = Account.initialize pk in
       match get_or_create_account_exn t pk (Account.initialize pk) with
-      | `Added, location -> (location, initial_account, [pk])
-      | `Existed, location -> (location, get t location |> Option.value_exn, [])
+      | `Added, location -> (printf "it is new\n" ; (location, initial_account, [pk]))
+      | `Existed, location -> (printf "it already existed\n" ; (location, get t location |> Option.value_exn, []))
     in
     let open Or_error.Let_syntax in
     let%bind proposer_reward, emptys1, receiver_update =
@@ -298,6 +298,7 @@ module Make (L : Ledger_intf) : S with type ledger := L.t = struct
     in
     let%map balance = add_amount proposer_account.balance proposer_reward in
     set t proposer_location {proposer_account with balance} ;
+    printf !"set to %{sexp:Account.t}\n" {proposer_account with balance} ;
     Option.iter receiver_update ~f:(fun (l, a) -> set t l a) ;
     {Undo.coinbase= cb; previous_empty_accounts= emptys1 @ emptys2}
 

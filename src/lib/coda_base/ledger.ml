@@ -216,10 +216,11 @@ let%test_unit "commiting a ledger twice" =
   Backtrace.elide := false ;
   let i = ref 0 in
   let m s = sprintf "round %d: %s" !i s in
-  let apply_txns (db:Db.t) ephem txns =
+  let apply_txns (db:Db.t) ephem txns acct_loc =
     let source = merkle_root ephem in
     List.iter txns ~f:(fun tx -> apply_transaction ephem tx |> Or_error.ok_exn |> ignore) ;
     let dest = merkle_root ephem in
+    let dest_path = merkle_path ephem acct_loc in
 
     [%test_result: Ledger_hash.t]
       ~message:(m "db starts at same hash as ephemeral")
@@ -234,7 +235,14 @@ let%test_unit "commiting a ledger twice" =
       (merkle_root db_mask)
       ;
 
+    printf !"Ephem: %{sexp:t}\n" ephem ;
+    printf !"DB mask before: %{sexp:t}\n" db_mask ;
+
+    printf "applying txns\n" ;
     List.iter txns ~f:(fun tx -> apply_transaction db_mask tx |> Or_error.ok_exn |> ignore) ;
+
+    printf !"DB mask after: %{sexp:t}\n" db_mask ;
+    printf !"true DB: %{sexp:Db.t} %{sexp:Account.t list}\n" db (Db.to_list db);
 
     [%test_result: Ledger_hash.t]
      ~message:(m "db_mask ends at same hash as ephemeral")
@@ -259,9 +267,10 @@ let%test_unit "commiting a ledger twice" =
       (Coinbase.create ~proposer:pubkey ~amount:(Currency.Amount.of_int 10) ~fee_transfer:None |> Or_error.ok_exn) in
     with_ephemeral_ledger ~f:(fun ephem ->
       let (key, account, loc) = get_or_create ephem pubkey in
-      Db.set root_ledger loc account ;
-      apply_txns root_ledger ephem [txn] ;
-      apply_txns root_ledger ephem [txn] ;
+      let (_, l2) = Db.get_or_create_account_exn root_ledger pubkey account in
+      assert (Location.equal loc l2) ;
+      apply_txns root_ledger ephem [txn] loc ;
+      apply_txns root_ledger ephem [txn] loc ;
     ) ;
     Async.Deferred.unit
   ) |> Fn.const |> Async.Thread_safe.block_on_async_exn

@@ -256,6 +256,11 @@ module Make
   end
 
   let set mdb location account =
+    let location_stored_for_key = Account_location.get mdb (Account.public_key account) |> Result.ok |> Option.value_exn ~message:"tried to set an account without a location mapping" in
+    [%test_result: Location.t]
+      ~message:"Database.set location for account differed from stored location mapping"
+      ~expect:location_stored_for_key
+      location ;
     set_bin mdb location Account.bin_size_t Account.bin_write_t account ;
     set_hash mdb
       (Location.Hash (Location.to_path_exn location))
