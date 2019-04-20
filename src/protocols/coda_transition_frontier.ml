@@ -450,6 +450,7 @@ module type Catchup_intf = sig
 
   val run :
        logger:Logger.t
+    -> trust_system:Trust_system.t
     -> network:network
     -> frontier:transition_frontier
     -> catchup_job_reader:( state_hash
