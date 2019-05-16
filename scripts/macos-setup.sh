@@ -85,12 +85,15 @@ EOF
   building_kad=$?
   set -e
   make kademlia
+  make libp2p_helper
   if [[ "$CIRCLE_BUILD_NUM" && "$building_kad" = 0 ]]; then
       nix copy --to s3://o1-nix-cache src/app/kademlia-haskell/result/
+      nix copy --to s3://o1-nix-cache src/app/libp2p_helper/result/
       # Incantation to copy build dependencies. We instantiate the nix
       # expression to a derivation, get a list of the derivations it references,
       # and copy the outputs of those derivations to our cache.
       nix copy --to s3://o1-nix-cache $(nix-store -r $(nix-store -q --references $(nix-instantiate src/app/kademlia-haskell/release2.nix)))
+      nix copy --to s3://o1-nix-cache $(nix-store -r $(nix-store -q --references $(nix-instantiate src/app/libp2p_helper/default.nix)))
   fi
   set -u
 else

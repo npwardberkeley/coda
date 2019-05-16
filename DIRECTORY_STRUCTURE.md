@@ -36,3 +36,5 @@ files play.
       This utility reads from `stdin` and can filter and pretty print the log messages emitted by the coda daemon.
     - `kademlia-haskell/`
       This is a simple wrapper around a Haskell implementation of the kademlia DHT.
+    - `libp2p_helper/`
+      This is a wrapper around libp2p, similar to [go-libp2p-daemon](https://github.com/libp2p/go-libp2p-daemon) but only what Coda needs.
